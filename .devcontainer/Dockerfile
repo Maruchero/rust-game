@@ -24,8 +24,9 @@ RUN apt-get update \
     libwayland-dev \
     libegl1-mesa-dev \
     libgl1-mesa-dev \
-  libvulkan-dev \
-  vulkan-tools \
+    libvulkan-dev \
+    vulkan-tools \
+    libxkbcommon-x11-0 \
     libpulse-dev \
     libsdl2-dev \
     libasound2-dev \
