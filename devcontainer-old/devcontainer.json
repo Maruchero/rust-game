@@ -1,0 +1,38 @@
+{
+  "name": "Rust Game Dev (GPU)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "runArgs": [
+    "-v", "/tmp/.X11-unix:/tmp/.X11-unix",
+    "-e", "DISPLAY",
+    "-v", "${localEnv:HOME}/.Xauthority:/home/vscode/.Xauthority:ro",
+    "--device", "/dev/dri",
+    "--device", "/dev/input"
+  ],
+  "mounts": [
+    "source=${localEnv:HOME}/.cargo/registry,target=/home/vscode/.cargo/registry,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.cargo/git,target=/home/vscode/.cargo/git,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/target,target=/home/vscode/.cache/target,type=bind,consistency=cached"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "editor.formatOnSave": true
+      },
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "serayuzgur.crates",
+        "ms-vscode.cpptools"
+      ]
+    }
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": "rustup default stable && rustup component add rustfmt clippy rust-src && rustup target add wasm32-unknown-unknown && cargo install sccache --locked || true",
+  "features": {}
+}
