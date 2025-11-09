@@ -33,7 +33,7 @@
       "extensions": [
         "rust-lang.rust-analyzer",
         "vadimcn.vscode-lldb",
-        "serayuzgur.crates",
+        "fill-labs.dependi",
         "ms-vscode.cpptools"
       ]
     }
