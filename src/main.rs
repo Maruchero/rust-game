@@ -1,5 +1,6 @@
 //! The main entry point of the application.
-use bevy::prelude::*;
+use bevy::{prelude::*, render::texture::ImageSampler};
+use bevy::render::texture::ImageSamplerDescriptor;
 
 mod states;
 mod menu;
@@ -14,7 +15,9 @@ use level_editor::LevelEditorPlugin;
 fn main() {
     App::new()
         // Add Bevy's default plugins
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(ImagePlugin {
+            default_sampler: ImageSamplerDescriptor::nearest(),
+        }))
         // Initialize the global state machine
         .init_state::<GameState>()
         // Add our custom plugins
