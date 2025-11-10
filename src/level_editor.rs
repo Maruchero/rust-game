@@ -107,6 +107,7 @@ fn cursor_system(
 
 fn tile_placement_system(
     mut commands: Commands,
+    mut contexts: EguiContexts,
     world_coords: Res<WorldCoordinates>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     q_tiles: Query<(Entity, &Transform, &Sprite), With<Tile>>,
@@ -114,6 +115,10 @@ fn tile_placement_system(
     selected_tile: Res<SelectedTile>,
     texture_atlas_layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
+    // If egui is interacting with the pointer, don't place tiles
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
     if mouse_button_input.just_pressed(MouseButton::Left) {
         let layout = texture_atlas_layouts.get(&cave_atlases.platform_atlas).unwrap();
         let tile_rect = layout.textures[selected_tile.index];
