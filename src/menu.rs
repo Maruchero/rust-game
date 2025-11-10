@@ -1,7 +1,8 @@
+//! This module contains the `MenuPlugin` and all associated logic for the main menu.
 use bevy::{app::AppExit, prelude::*};
-
 use crate::states::GameState;
 
+/// This plugin is responsible for building and managing the main menu.
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
@@ -15,10 +16,9 @@ impl Plugin for MenuPlugin {
     }
 }
 
-// Tag component used to tag entities added on the main menu screen
+// --- Components ---
 #[derive(Component)]
 struct MainMenuUI;
-
 #[derive(Component)]
 enum MenuButtonAction {
     Play,
@@ -26,11 +26,15 @@ enum MenuButtonAction {
     Quit,
 }
 
+// --- Constants ---
 const TEXT_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
+// --- Systems ---
+
+/// Handles button interactions, changing their color and performing actions on click.
 fn button_interaction_system(
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor, &MenuButtonAction),
@@ -43,6 +47,7 @@ fn button_interaction_system(
         match *interaction {
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
+                // Perform the action associated with the button
                 match menu_button_action {
                     MenuButtonAction::Play => next_state.set(GameState::InGame),
                     MenuButtonAction::LevelEditor => next_state.set(GameState::LevelEditor),
@@ -61,12 +66,14 @@ fn button_interaction_system(
     }
 }
 
+/// Spawns all the UI entities for the main menu.
 fn setup_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Spawn the camera
+    // A 2D camera is required for UI to be rendered
     commands.spawn((Camera2dBundle::default(), MainMenuUI));
 
     let font = asset_server.load("fonts/DejaVuSans.ttf");
 
+    // Root node that centers the menu
     commands
         .spawn((
             NodeBundle {
@@ -97,7 +104,7 @@ fn setup_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..default()
             }));
 
-            // Play button
+            // --- Buttons ---
             parent
                 .spawn((
                     ButtonBundle {
@@ -125,7 +132,6 @@ fn setup_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ));
                 });
 
-            // Level Editor button
             parent
                 .spawn((
                     ButtonBundle {
@@ -153,7 +159,6 @@ fn setup_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ));
                 });
 
-            // Quit button
             parent
                 .spawn((
                     ButtonBundle {
@@ -183,6 +188,7 @@ fn setup_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
+/// Despawns all entities tagged with `MainMenuUI`.
 fn cleanup_menu(mut commands: Commands, query: Query<Entity, With<MainMenuUI>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();

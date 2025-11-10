@@ -1,3 +1,4 @@
+//! Defines the global `GameState` enum, which controls the application's flow.
 use bevy::prelude::*;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
