@@ -19,33 +19,34 @@ cargo run
 *   **Code Style:** Follow standard Rust conventions and formatting (e.g., using `cargo fmt`).
 *   **Testing:** *TODO: Define a testing strategy for the game.*
 
-## Main Menu Implementation Plan
+## Main Menu Architecture
 
-Here is a high-level outline of the steps to implement the game menu.
+The main menu is implemented using Bevy's state machine and built-in UI tools. This section describes the architecture.
 
-### 1. Define Game States
-First, you'll need to manage the different states of your application. You'll introduce an `enum` to represent the distinct modes:
+### 1. Game States
+The application's flow is managed by a `GameState` enum with three states:
 *   `MainMenu`: For when the menu is displayed.
 *   `InGame`: For when the actual game is being played.
 *   `LevelEditor`: For the level editing mode.
 
-You will register this `enum` with the Bevy app and set `MainMenu` as the initial state.
+The app is initialized into the `MainMenu` state.
 
-### 2. Create the Menu UI
-A "setup" system will run once when the application enters the `MainMenu` state. This system will create the menu's visual elements:
-*   Spawn a root UI node to cover the screen.
-*   Spawn text for the game's title.
-*   Spawn three buttons: "Play", "Level Editor", and "Quit".
+### 2. UI Construction (`OnEnter`)
+A `setup_menu` system runs once when the application enters the `MainMenu` state. It is responsible for spawning all the menu's UI entities, including:
+*   A 2D Camera for the UI.
+*   A root `NodeBundle` to structure the layout.
+*   A `TextBundle` for the game's title.
+*   Three `ButtonBundle` entities for "Play", "Level Editor", and "Quit".
 
-### 3. Implement Button Interactivity
-Another system will run continuously while in the `MainMenu` state to:
-*   Monitor the buttons for user clicks and provide visual feedback (e.g., hover color).
-*   When "Play" is clicked, change the state to `InGame`.
-*   When "Level Editor" is clicked, change the state to `LevelEditor`.
-*   When "Quit" is clicked, send an event to close the application.
+All entities created in this system are tagged with a `MainMenuUI` component.
 
-### 4. Clean Up the Menu
-A "cleanup" system will run once when the application exits the `MainMenu` state. This system will despawn all menu UI elements so they don't appear in other states.
+### 3. Button Interactivity (`Update`)
+A system runs every frame during the `MainMenu` state to handle button interactivity:
+*   It queries for buttons and changes their `BackgroundColor` based on the `Interaction` state (Hovered, Pressed, or None).
+*   When a button is `Pressed`, it checks a `MenuButtonAction` component on the button to determine the action:
+    *   **Play**: Changes the state to `InGame`.
+    *   **Level Editor**: Changes the state to `LevelEditor`.
+    *   **Quit**: Sends an `AppExit` event to close the application.
 
-### Required Asset
-You will need a font file (like a `.ttf` or `.otf`) in your `assets` directory to display the text.
+### 4. UI Cleanup (`OnExit`)
+A `cleanup_menu` system runs once when the application exits the `MainMenu` state. It queries for all entities with the `MainMenuUI` tag and despawns them recursively, ensuring the menu does not appear over other game states.
