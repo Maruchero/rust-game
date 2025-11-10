@@ -85,7 +85,7 @@ fn check_assets_loaded(
         // Cleanup the temporary resource
         commands.remove_resource::<LoadingImageHandles>();
 
-        // Transition to the main menu
-        next_state.set(GameState::MainMenu);
+        // Transition to the level editor
+        next_state.set(GameState::LevelEditor);
     }
 }
