@@ -136,6 +136,17 @@ fn tile_placement_system(
         return;
     }
     if mouse_button_input.just_pressed(MouseButton::Left) {
+        // Check if a tile already exists at the clicked location
+        for (_entity, transform, sprite) in q_tiles.iter() {
+            let size = sprite.custom_size.unwrap_or(Vec2::new(1.0, 1.0));
+            let tile_rect = Rect::from_center_size(transform.translation.truncate(), size);
+
+            if tile_rect.contains(world_coords.0) {
+                // A tile already exists here, so don't place a new one
+                return;
+            }
+        }
+
         let layout = texture_atlas_layouts.get(&cave_atlases.platform_atlas).unwrap();
         let tile_rect = layout.textures[selected_tile.index];
         let tile_size = Vec2::new(tile_rect.width(), tile_rect.height());
