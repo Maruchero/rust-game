@@ -105,6 +105,10 @@ fn tile_placement_system(
                     layout: cave_atlases.platform_atlas.clone(),
                     index: 0, // Index of the 'small_square' sprite
                 },
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(32.0, 32.0)),
+                    ..default()
+                },
                 transform: Transform::from_translation(world_coords.0.extend(0.0)),
                 ..default()
             },
