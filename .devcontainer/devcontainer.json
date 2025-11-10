@@ -28,7 +28,9 @@
     "vscode": {
       "settings": {
         "terminal.integrated.shell.linux": "/bin/bash",
-        "editor.formatOnSave": true
+        "terminal.integrated.env.linux": {
+          "WAYLAND_DISPLAY": null
+        }
       },
       "extensions": [
         "rust-lang.rust-analyzer",
@@ -40,7 +42,5 @@
   },
   "remoteUser": "vscode",
   "postCreateCommand": "rustup default stable && rustup component add rustfmt clippy rust-src rust-analyzer && rustup target add wasm32-unknown-unknown && cargo install sccache --locked || true",
-  // FORCE X11 RENDERING
-  "postAttachCommand": "echo 'unset WAYLAND_DISPLAY' >> ~/.bashrc && source ~/.bashrc",
   "features": {}
 }
