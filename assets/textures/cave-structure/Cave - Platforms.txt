@@ -1,12 +1,12 @@
 name, x, y, width, height
-small_square, 19, 24, 197, 191
-small_rect_horizontal, 231, 20, 394, 194
-small_rect_vertical, 44, 641, 200, 396
-big_square, 666, 53, 316, 328
-big_rect, 25, 222, 567, 369
-big_big_square, 615, 397, 393, 368
-ground_short, 272, 644, 308, 64
-ground_long, 627, 791, 358, 67
-rock_sm, 719, 887, 196, 107
-rock_md, 291, 720, 270, 161
-rock_lg, 265, 899, 395, 108
+Small Square, 19, 24, 197, 191
+Small Rect Horizontal, 231, 20, 394, 194
+Small Rect Vertical, 44, 641, 200, 396
+Big Square, 666, 53, 316, 328
+Big Rect, 25, 222, 567, 369
+Big Big Square, 615, 397, 393, 368
+Ground Short, 272, 644, 308, 64
+Ground Long, 627, 791, 358, 67
+Rock Small, 719, 887, 196, 107
+Rock Medium, 291, 720, 270, 161
+Rock Large, 265, 899, 395, 108

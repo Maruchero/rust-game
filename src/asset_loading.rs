@@ -1,7 +1,7 @@
 //! This module is responsible for loading all the game's assets.
 //! It runs during the `GameState::Loading` state.
 
-use bevy::{asset::LoadState, prelude::*};
+use bevy::{asset::{LoadState, AsyncReadExt}, prelude::*};
 
 use crate::states::GameState;
 
@@ -20,8 +20,9 @@ impl Plugin for AssetLoadingPlugin {
 
 /// A temporary resource to hold the handle for the platform image while it's loading.
 #[derive(Resource, Default)]
-struct LoadingImageHandles {
+struct LoadingHandles {
     platform_image: Handle<Image>,
+    platform_data: Handle<TextAsset>,
 }
 
 /// A resource to hold handles to the loaded texture atlases.
@@ -31,12 +32,47 @@ pub struct CaveAtlases {
     pub platform_atlas: Handle<TextureAtlasLayout>,
     // We also need to store the handle for the image itself
     pub platform_image: Handle<Image>,
+    /// The names of the tiles in the atlas.
+    pub tile_names: Vec<String>,
 }
+
+/// A custom asset type for the platform data file.
+#[derive(Asset, TypePath, Debug)]
+pub struct TextAsset(pub String);
+
+#[derive(Default)]
+pub struct TextAssetLoader;
+
+impl bevy::asset::AssetLoader for TextAssetLoader {
+    type Asset = TextAsset;
+    type Settings = ();
+    type Error = std::io::Error;
+
+    fn load<'a>(
+        &'a self,
+        reader: &'a mut bevy::asset::io::Reader,
+        _settings: &'a Self::Settings,
+        _load_context: &'a mut bevy::asset::LoadContext,
+    ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+        Box::pin(async move {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+            let text = String::from_utf8(bytes).unwrap();
+            Ok(TextAsset(text))
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+}
+
 
 /// Starts loading the platform image asset.
 fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(LoadingImageHandles {
+    commands.insert_resource(LoadingHandles {
         platform_image: asset_server.load("textures/cave-structure/Cave - Platforms.png"),
+        platform_data: asset_server.load("textures/cave-structure/Cave - Platforms.txt"),
     });
 }
 
@@ -46,32 +82,38 @@ fn check_assets_loaded(
     mut commands: Commands,
     mut next_state: ResMut<NextState<GameState>>,
     asset_server: Res<AssetServer>,
-    loading_handles: Res<LoadingImageHandles>,
+    loading_handles: Res<LoadingHandles>,
     images: Res<Assets<Image>>,
+    text_assets: Res<Assets<TextAsset>>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    let load_state = asset_server.get_load_state(&loading_handles.platform_image);
+    let image_load_state = asset_server.get_load_state(&loading_handles.platform_image);
+    let data_load_state = asset_server.get_load_state(&loading_handles.platform_data);
 
-    if load_state == Some(LoadState::Loaded) {
+    if image_load_state == Some(LoadState::Loaded) && data_load_state == Some(LoadState::Loaded) {
         // The image is loaded. Get its dimensions.
         let image = images.get(&loading_handles.platform_image).unwrap();
         let dimensions = image.size_f32();
 
+        // The data file is loaded. Parse it.
+        let data = text_assets.get(&loading_handles.platform_data).unwrap();
+        let mut tile_names = Vec::new();
+
         // Create a new texture atlas layout with the correct dimensions
         let mut layout = TextureAtlasLayout::new_empty(dimensions);
-        // Add each platform sprite as a texture region
-        // Rect::new(min_x, min_y, max_x, max_y)
-        layout.add_texture(Rect::new(19.0, 24.0, 19.0 + 197.0, 24.0 + 191.0)); // small_square
-        layout.add_texture(Rect::new(231.0, 20.0, 231.0 + 394.0, 20.0 + 194.0)); // small_rect_horizontal
-        layout.add_texture(Rect::new(44.0, 641.0, 44.0 + 200.0, 641.0 + 396.0)); // small_rect_vertical
-        layout.add_texture(Rect::new(666.0, 53.0, 666.0 + 316.0, 53.0 + 328.0)); // big_square
-        layout.add_texture(Rect::new(25.0, 222.0, 25.0 + 567.0, 222.0 + 369.0)); // big_rect
-        layout.add_texture(Rect::new(615.0, 397.0, 615.0 + 393.0, 397.0 + 368.0)); // big_big_square
-        layout.add_texture(Rect::new(272.0, 644.0, 272.0 + 308.0, 644.0 + 64.0)); // ground_short
-        layout.add_texture(Rect::new(627.0, 791.0, 627.0 + 358.0, 791.0 + 67.0)); // ground_long
-        layout.add_texture(Rect::new(719.0, 887.0, 719.0 + 196.0, 887.0 + 107.0)); // rock_sm
-        layout.add_texture(Rect::new(291.0, 720.0, 291.0 + 270.0, 720.0 + 161.0)); // rock_md
-        layout.add_texture(Rect::new(265.0, 899.0, 265.0 + 395.0, 899.0 + 108.0)); // rock_lg
+        
+        // Parse the CSV data
+        for line in data.0.lines().skip(1) { // Skip header
+            let parts: Vec<&str> = line.split(',').collect();
+            let name = parts[0].to_string();
+            let x: f32 = parts[1].trim().parse().unwrap();
+            let y: f32 = parts[2].trim().parse().unwrap();
+            let width: f32 = parts[3].trim().parse().unwrap();
+            let height: f32 = parts[4].trim().parse().unwrap();
+
+            tile_names.push(name);
+            layout.add_texture(Rect::new(x, y, x + width, y + height));
+        }
 
         // Add the layout to the asset collection
         let platform_atlas_layout_handle = texture_atlas_layouts.add(layout);
@@ -80,10 +122,11 @@ fn check_assets_loaded(
         commands.insert_resource(CaveAtlases {
             platform_atlas: platform_atlas_layout_handle,
             platform_image: loading_handles.platform_image.clone(),
+            tile_names,
         });
 
         // Cleanup the temporary resource
-        commands.remove_resource::<LoadingImageHandles>();
+        commands.remove_resource::<LoadingHandles>();
 
         // Transition to the main menu
         next_state.set(GameState::MainMenu);

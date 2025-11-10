@@ -14,12 +14,18 @@ pub struct LevelEditorCamera;
 #[derive(Resource, Default, Debug)]
 pub struct WorldCoordinates(pub Vec2);
 
+#[derive(Resource, Default, Debug)]
+pub struct SelectedTile {
+    pub index: usize,
+}
+
 pub struct LevelEditorPlugin;
 
 impl Plugin for LevelEditorPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EguiPlugin)
             .init_resource::<WorldCoordinates>()
+            .init_resource::<SelectedTile>()
             .add_systems(OnEnter(GameState::LevelEditor), setup_level_editor)
             .add_systems(
                 Update,
@@ -50,6 +56,8 @@ fn cleanup_level_editor(
 fn editor_ui_system(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<GameState>>,
+    mut selected_tile: ResMut<SelectedTile>,
+    cave_atlases: Res<CaveAtlases>,
 ) {
     egui::Window::new("Level Editor").show(contexts.ctx_mut(), |ui| {
         ui.label("Welcome to the Level Editor!");
@@ -64,7 +72,14 @@ fn editor_ui_system(
 
         // Tile selection
         ui.label("Select a tile to place:");
-        // TODO: Add tile selection buttons here
+        
+        ui.horizontal_wrapped(|ui| {
+            for (i, name) in cave_atlases.tile_names.iter().enumerate() {
+                if ui.button(name).clicked() {
+                    selected_tile.index = i;
+                }
+            }
+        });
 
         ui.separator();
 
@@ -96,17 +111,26 @@ fn tile_placement_system(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     q_tiles: Query<(Entity, &Transform, &Sprite), With<Tile>>,
     cave_atlases: Res<CaveAtlases>,
+    selected_tile: Res<SelectedTile>,
+    texture_atlas_layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
+        let layout = texture_atlas_layouts.get(&cave_atlases.platform_atlas).unwrap();
+        let tile_rect = layout.textures[selected_tile.index];
+        let tile_size = Vec2::new(tile_rect.width(), tile_rect.height());
+
+        let scale_factor = 0.2;
+        let scaled_size = tile_size * scale_factor;
+
         commands.spawn((
             SpriteSheetBundle {
                 texture: cave_atlases.platform_image.clone(),
                 atlas: TextureAtlas {
                     layout: cave_atlases.platform_atlas.clone(),
-                    index: 0, // Index of the 'small_square' sprite
+                    index: selected_tile.index,
                 },
                 sprite: Sprite {
-                    custom_size: Some(Vec2::new(32.0, 32.0)),
+                    custom_size: Some(scaled_size),
                     ..default()
                 },
                 transform: Transform::from_translation(world_coords.0.extend(0.0)),
