@@ -21,6 +21,13 @@ pub struct SelectedTile {
 }
 
 #[derive(Resource, Default)]
+pub struct TileDragState {
+    pub is_dragging: bool,
+    pub dragged_tile_entity: Option<Entity>,
+    pub offset: Vec2, // Offset from tile center to mouse click position
+}
+
+#[derive(Resource, Default)]
 pub struct CameraDragState {
     pub is_dragging: bool,
     pub last_mouse_position: Option<Vec2>,
@@ -33,14 +40,17 @@ impl Plugin for LevelEditorPlugin {
         app.add_plugins(EguiPlugin)
             .init_resource::<WorldCoordinates>()
             .init_resource::<SelectedTile>()
-            .init_resource::<CameraDragState>() // Initialize the new resource
+            .init_resource::<CameraDragState>() // Initialize the camera drag resource
+            .init_resource::<TileDragState>() // Initialize the new TileDragState resource
             .add_systems(OnEnter(GameState::LevelEditor), setup_level_editor)
             .add_systems(
                 Update,
                 (
                     editor_ui_system,
                     cursor_system,
-                    tile_placement_system,
+                    tile_placement_system, // This now initiates drag or places new tiles
+                    tile_drag_system,     // New system for continuous dragging
+                    tile_drag_end_system, // New system for ending the drag
                     camera_drag_start_system,
                     camera_drag_system,
                     camera_drag_end_system,
@@ -130,46 +140,53 @@ fn tile_placement_system(
     cave_atlases: Res<CaveAtlases>,
     selected_tile: Res<SelectedTile>,
     texture_atlas_layouts: Res<Assets<TextureAtlasLayout>>,
+    mut tile_drag_state: ResMut<TileDragState>,
 ) {
-    // If egui is interacting with the pointer, don't place tiles
+    // If egui is interacting with the pointer, don't place tiles or drag
     if contexts.ctx_mut().wants_pointer_input() {
         return;
     }
+
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        // Check if a tile already exists at the clicked location
-        for (_entity, transform, sprite) in q_tiles.iter() {
+        // Check if an existing tile is clicked to start dragging
+        for (entity, transform, sprite) in q_tiles.iter() {
             let size = sprite.custom_size.unwrap_or(Vec2::new(1.0, 1.0));
             let tile_rect = Rect::from_center_size(transform.translation.truncate(), size);
 
             if tile_rect.contains(world_coords.0) {
-                // A tile already exists here, so don't place a new one
-                return;
+                tile_drag_state.is_dragging = true;
+                tile_drag_state.dragged_tile_entity = Some(entity);
+                tile_drag_state.offset = world_coords.0 - transform.translation.truncate();
+                return; // Start dragging, don't place a new tile
             }
         }
 
-        let layout = texture_atlas_layouts.get(&cave_atlases.platform_atlas).unwrap();
-        let tile_rect = layout.textures[selected_tile.index];
-        let tile_size = Vec2::new(tile_rect.width(), tile_rect.height());
+        // If no tile was clicked, proceed with placing a new tile (if not dragging)
+        if !tile_drag_state.is_dragging {
+            let layout = texture_atlas_layouts.get(&cave_atlases.platform_atlas).unwrap();
+            let tile_rect = layout.textures[selected_tile.index];
+            let tile_size = Vec2::new(tile_rect.width(), tile_rect.height());
 
-        let scale_factor = 0.2;
-        let scaled_size = tile_size * scale_factor;
+            let scale_factor = 0.2;
+            let scaled_size = tile_size * scale_factor;
 
-        commands.spawn((
-            SpriteSheetBundle {
-                texture: cave_atlases.platform_image.clone(),
-                atlas: TextureAtlas {
-                    layout: cave_atlases.platform_atlas.clone(),
-                    index: selected_tile.index,
-                },
-                sprite: Sprite {
-                    custom_size: Some(scaled_size),
+            commands.spawn((
+                SpriteSheetBundle {
+                    texture: cave_atlases.platform_image.clone(),
+                    atlas: TextureAtlas {
+                        layout: cave_atlases.platform_atlas.clone(),
+                        index: selected_tile.index,
+                    },
+                    sprite: Sprite {
+                        custom_size: Some(scaled_size),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(world_coords.0.extend(0.0)),
                     ..default()
                 },
-                transform: Transform::from_translation(world_coords.0.extend(0.0)),
-                ..default()
-            },
-            Tile,
-        ));
+                Tile,
+            ));
+        }
     }
 
     if mouse_button_input.just_pressed(MouseButton::Right) {
@@ -181,6 +198,42 @@ fn tile_placement_system(
                 commands.entity(entity).despawn();
             }
         }
+    }
+}
+
+fn tile_drag_system(
+    mut contexts: EguiContexts,
+    tile_drag_state: Res<TileDragState>,
+    world_coords: Res<WorldCoordinates>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mut q_tiles: Query<&mut Transform, With<Tile>>,
+) {
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
+
+    if tile_drag_state.is_dragging && mouse_button_input.pressed(MouseButton::Left) {
+        if let Some(entity) = tile_drag_state.dragged_tile_entity {
+            if let Ok(mut transform) = q_tiles.get_mut(entity) {
+                transform.translation = (world_coords.0 - tile_drag_state.offset).extend(transform.translation.z);
+            }
+        }
+    }
+}
+
+fn tile_drag_end_system(
+    mut contexts: EguiContexts,
+    mut tile_drag_state: ResMut<TileDragState>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+) {
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
+
+    if mouse_button_input.just_released(MouseButton::Left) && tile_drag_state.is_dragging {
+        tile_drag_state.is_dragging = false;
+        tile_drag_state.dragged_tile_entity = None;
+        tile_drag_state.offset = Vec2::ZERO;
     }
 }
 
