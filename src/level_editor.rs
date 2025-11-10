@@ -1,6 +1,7 @@
 //! This module contains all logic for the level editor.
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy::input::mouse::MouseWheel;
 
 use crate::asset_loading::CaveAtlases;
 use crate::states::GameState;
@@ -19,6 +20,12 @@ pub struct SelectedTile {
     pub index: usize,
 }
 
+#[derive(Resource, Default)]
+pub struct CameraDragState {
+    pub is_dragging: bool,
+    pub last_mouse_position: Option<Vec2>,
+}
+
 pub struct LevelEditorPlugin;
 
 impl Plugin for LevelEditorPlugin {
@@ -26,10 +33,19 @@ impl Plugin for LevelEditorPlugin {
         app.add_plugins(EguiPlugin)
             .init_resource::<WorldCoordinates>()
             .init_resource::<SelectedTile>()
+            .init_resource::<CameraDragState>() // Initialize the new resource
             .add_systems(OnEnter(GameState::LevelEditor), setup_level_editor)
             .add_systems(
                 Update,
-                (editor_ui_system, cursor_system, tile_placement_system)
+                (
+                    editor_ui_system,
+                    cursor_system,
+                    tile_placement_system,
+                    camera_drag_start_system,
+                    camera_drag_system,
+                    camera_drag_end_system,
+                    camera_zoom_system, // New system for zooming
+                )
                     .run_if(in_state(GameState::LevelEditor)),
             )
             .add_systems(OnExit(GameState::LevelEditor), cleanup_level_editor);
@@ -154,5 +170,103 @@ fn tile_placement_system(
                 commands.entity(entity).despawn();
             }
         }
+    }
+}
+
+fn camera_drag_start_system(
+    mut camera_drag_state: ResMut<CameraDragState>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    q_window: Query<&Window>,
+    mut contexts: EguiContexts,
+) {
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
+
+    if mouse_button_input.just_pressed(MouseButton::Middle) {
+        if let Some(position) = q_window.single().cursor_position() {
+            camera_drag_state.is_dragging = true;
+            camera_drag_state.last_mouse_position = Some(position);
+        }
+    }
+}
+
+fn camera_drag_system(
+    mut camera_drag_state: ResMut<CameraDragState>,
+    q_window: Query<&Window>,
+    mut q_camera: Query<&mut Transform, With<LevelEditorCamera>>,
+    mut contexts: EguiContexts,
+) {
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
+
+    if camera_drag_state.is_dragging {
+        if let Some(current_mouse_position) = q_window.single().cursor_position() {
+            if let Some(last_mouse_position) = camera_drag_state.last_mouse_position {
+                let delta = current_mouse_position - last_mouse_position;
+
+                let mut camera_transform = q_camera.single_mut();
+                // Scale the delta by the camera's scale to make movement consistent regardless of zoom
+                let scaled_delta = delta * camera_transform.scale.x;
+
+                // Invert the delta because dragging the mouse right should move the camera left
+                camera_transform.translation.x -= scaled_delta.x;
+                camera_transform.translation.y += scaled_delta.y; // Y-axis is usually inverted for screen coords vs world coords
+
+                camera_drag_state.last_mouse_position = Some(current_mouse_position);
+            }
+        }
+    }
+}
+
+fn camera_drag_end_system(
+    mut camera_drag_state: ResMut<CameraDragState>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mut contexts: EguiContexts,
+) {
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
+
+    if mouse_button_input.just_released(MouseButton::Middle) {
+        camera_drag_state.is_dragging = false;
+        camera_drag_state.last_mouse_position = None;
+    }
+}
+
+fn camera_zoom_system(
+    mut mouse_wheel_events: EventReader<MouseWheel>,
+    mut q_camera: Query<&mut Transform, With<LevelEditorCamera>>,
+    mut contexts: EguiContexts,
+    world_coords: Res<WorldCoordinates>, // Add WorldCoordinates resource
+) {
+    if contexts.ctx_mut().wants_pointer_input() {
+        return;
+    }
+
+    let mut camera_transform = q_camera.single_mut();
+    let mut zoom_amount = 0.0;
+    for event in mouse_wheel_events.read() {
+        zoom_amount += event.y;
+    }
+
+    if zoom_amount != 0.0 {
+        let zoom_speed = 0.1; // Adjust this value to change zoom speed
+        let old_scale = camera_transform.scale.x;
+        let new_scale_factor = 1.0 - (zoom_amount * zoom_speed);
+        let new_scale = (old_scale * new_scale_factor).clamp(0.1, 2.0); // Clamp the new scale
+
+        // Calculate the mouse's world position before zoom
+        let mouse_world_pos_before_zoom = world_coords.0;
+
+        // Calculate the camera's new position to zoom towards the mouse
+        let camera_center_before_zoom = camera_transform.translation.truncate();
+        let offset_from_center = mouse_world_pos_before_zoom - camera_center_before_zoom;
+        let new_offset_from_center = offset_from_center * (new_scale / old_scale);
+        let new_camera_center = mouse_world_pos_before_zoom - new_offset_from_center;
+
+        camera_transform.translation = new_camera_center.extend(camera_transform.translation.z);
+        camera_transform.scale = Vec3::splat(new_scale);
     }
 }
